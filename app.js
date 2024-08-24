@@ -9,18 +9,12 @@ onAuthStateChanged(auth, (user) => {
             loginBtn.style.display = "none";
             logoutBtn.style.display = "block";
         }
-        // if(location.pathname !== '/index.html'){
-        //     location.href = "index.html";
-        // }
         console.log("register:-",user);
     } else {
         if(loginBtn || logoutBtn){
             loginBtn.style.display = "block";
             logoutBtn.style.display = "none";
         }
-        // if(location.pathname !== '/signin.html'){
-        //     location.href = "signin.html";
-        // }
         console.log("not Signin"); 
     }
 });
