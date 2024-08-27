@@ -44,7 +44,8 @@ sellBtn && sellBtn.addEventListener("click", sell);
 
 
 // Database
-let file = document.getElementById("file");
+let file1 = document.getElementById("file1");
+let file2 = document.getElementById("file2");
 let prodName = document.getElementById("prodName");
 let prodDesD = document.getElementById("prodDesD");
 let prodDesS = document.getElementById("prodDesS");
@@ -53,59 +54,63 @@ let city = document.getElementById("city");
 let category = document.getElementById("category");
 let loader = document.getElementById("loader");
 
+let arr = [];
 let post = async () => {
-    const userData = {
-        img: file.files[0],
-        title: prodName.value,
-        desS: prodDesS.value,
-        desD: prodDesD.value,
-        price: prodPrice.value,
-        city: city.value,
-        categ: category.value
-    };
+    try {
+        const userData = {
+            img1: file1.files[0],
+            img2: file2.files[0],
+            title: prodName.value,
+            desS: prodDesS.value,
+            desD: prodDesD.value,
+            price: prodPrice.value,
+            city: city.value,
+            categ: category.value
+        };
 
-    const imgRef = ref(storage, userData.img.name);
-    const uploadTask = uploadBytesResumable(imgRef, file.files[0]);
+        // Upload the first image
+        const imgRef1 = ref(storage, userData.img1.name);
+        const uploadTask1 = await uploadBytesResumable(imgRef1, userData.img1);
 
-    uploadTask.on('state_changed',
-        (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            console.log('Upload is ' + progress + '% done');
-            switch (snapshot.state) {
-                case 'paused':
-                    console.log('Upload is paused');
-                    break;
-                case 'running':
-                    console.log('Upload is running');
-                    break;
-            }
-        },
-        (error) => {
-            console.log("error in storage:-", error);
-        },
-        async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('Url:-', downloadURL);
-            userData.img = downloadURL;
+        const downloadURL1 = await getDownloadURL(uploadTask1.ref);
+        console.log('First Image URL:', downloadURL1);
+        userData.img1 = downloadURL1;
 
-            // Check if category exists
-            const categoryQuery = query(collection(db, "categories"), where("name", "==", userData.categ));
-            const categorySnapshot = await getDocs(categoryQuery);
+        // Upload the second image
+        const imgRef2 = ref(storage, userData.img2.name);
+        const uploadTask2 = await uploadBytesResumable(imgRef2, userData.img2);
 
-            if (categorySnapshot.empty) {
-                // Category does not exist, create a new category
-                await addDoc(collection(db, "categories"), { name: userData.categ });
-            }
+        const downloadURL2 = await getDownloadURL(uploadTask2.ref);
+        console.log('Second Image URL:', downloadURL2);
+        userData.img2 = downloadURL2;
 
-            // Add product to the "products" collection
-            const docRef = await addDoc(collection(db, "products"), userData);
-            console.log("Document written with ID: ", docRef.id);
-            getData();
+        // Check if category exists
+        const categoryQuery = query(collection(db, "categories"), where("name", "==", userData.categ));
+        const categorySnapshot = await getDocs(categoryQuery);
+
+        if (categorySnapshot.empty) {
+            await addDoc(collection(db, "categories"), { name: userData.categ });
         }
-    );
-}
+        console.log(userData);
 
-// console.log(db);
+        // Add product to the "products" collection
+        const docRef = await addDoc(collection(db, "products"), userData);
+        console.log("Document written with ID:", docRef.id);
+        getData();
+    } catch (error) {
+        console.log("Error during upload:", error);
+    }
+// };
+
+    prodName.value = '';
+    prodDesD.value = '';
+    prodDesS.value = '';
+    prodPrice.value = '';
+    city.value = '';
+    category.value = '';
+    file1.value = '';
+    file2.value = '';
+};
 
 let postBtn = document.getElementById("postBtn");
 postBtn && postBtn.addEventListener("click", post);
@@ -126,12 +131,14 @@ let getData = async () => {
 
         querySnapshot.forEach((doc) => {
             const prodData = doc.data();
-            const { img, title, desS, desD, price, city, categ } = prodData;
+            const { img1, img2, title, desS, desD, price, city, categ } = prodData;
 
             if (!categories[categ]) {
                 categories[categ] = [];
             }
-            categories[categ].push({ id: doc.id, img, title, desS, desD, price, city });
+            categories[categ].push({ id: doc.id, img1, img2, title, desS, desD, price, city });
+            arr.push({id:doc.id, data:prodData});
+            localStorage.setItem("prod", JSON.stringify(arr));
         });
 
         for (const categ in categories) {
@@ -143,12 +150,12 @@ let getData = async () => {
             mainCardContainer.classList.add('d-flex', 'justify-content-center', 'flex-wrap', 'gap-4');
 
             categories[categ].forEach((prodData) => {
-                const { id, img, title, desS, desD, price, city } = prodData;
+                const { id, img1, title, desS, desD, price, city } = prodData;
                 const productCard = document.createElement('div');
                 productCard.innerHTML = `
                     <div id="sellCard" class="p-1">
                         <div class="prodImg">
-                            <img src="${img}" alt="">
+                            <img src="${img1}" alt="">
                         </div>
                         <div class="p-1 prodText">
                             <div class="d-flex justify-content-between">
@@ -184,70 +191,50 @@ let getData = async () => {
 getData();
 
 
-// Fun BuyProduct
-async function buyProd(id) {
-    console.log(id);
-    const docRef = doc(db, "products", id);
-    const docSnap = await getDoc(docRef);
+let getD = JSON.parse(localStorage.getItem("prod"));
+function buyProd(id) {
+    location.href = `addtocart.html?id=${id}`;
+}
+
+let getProdDetail = async() => {
     let addtoCart = document.getElementById("addtoCart");
-    
-    if (docSnap.exists()) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const getId = urlParams.get('id');
+    if (addtoCart) {
+    const docRef = doc(db, "products", getId);
+    const docSnap = await getDoc(docRef);
+    let {img1, img2, city, price, title, desD} = docSnap.data()
         console.log("Document data:", docSnap.data());
-        let getCartData = docSnap.data();
-        const { title, img, price, desD, city } = getCartData;  // Corrected 'prie' to 'price'
-        
-        if (addtoCart) {
-            addtoCart.innerHTML += `
-            <a style="height: 380px;" href="#" class="mt-4 block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
-                <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">${title}</h5>
-                <p class="font-normal text-gray-700 dark:text-gray-400">${desD}</p>
-                <p class="my-2 font-bold text-gray-700 dark:text-gray-400">PKR ${price}</p>
-                <p class="my-2 font-semibold text-gray-700 dark:text-gray-400 text-3xl "><i class="me-1 fa-solid fa-location-dot"></i>${city}</p>
-                <div>
-                    <p>Seller id: 1081841853</p>
-                    <p class="my-2 text-xl"><i class="me-2 fa-solid fa-phone"></i>0324789799</p>
-                </div>
-                <button href="#" class="my-2 inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
-                    Place an order
-                    <svg class="rtl:rotate-180 w-3.5 h-3.5 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 10">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5h12m0 0L9 1m4 4L9 9"/>
-                    </svg>
-                </button>
-            </a>
-            <div style="width: 750px;" id="default-carousel" class="relative m-4" data-carousel="slide">
-                <div class="relative h-56 overflow-hidden rounded-lg md:h-96">
-                    <div class=" duration-700 ease-in-out" data-carousel-item>
-                        <img src=${img} class="absolute block w-full -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2" alt="Product Image">
-                    </div>
-                    <!-- Add additional carousel items here if necessary -->
-                </div>
-                <div class="absolute z-30 flex -translate-x-1/2 bottom-5 left-1/2 space-x-3 rtl:space-x-reverse">
-                    <button type="button" class="w-3 h-3 rounded-full" aria-current="true" aria-label="Slide 1" data-carousel-slide-to="0"></button>
-                    <!-- Additional carousel controls -->
-                </div>
-                <button type="button" class="absolute top-0 start-0 z-30 flex items-center justify-center h-full px-4 cursor-pointer group focus:outline-none" data-carousel-prev>
-                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/30 dark:bg-gray-800/30 group-hover:bg-white/50 dark:group-hover:bg-gray-800/60 group-focus:ring-4 group-focus:ring-white dark:group-focus:ring-gray-800/70 group-focus:outline-none">
-                        <svg class="w-4 h-4 text-white dark:text-gray-800 rtl:rotate-180" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 1 1 5l4 4"/>
-                        </svg>
-                        <span class="sr-only">Previous</span>
-                    </span>
-                </button>
-                <button type="button" class="absolute top-0 end-0 z-30 flex items-center justify-center h-full px-4 cursor-pointer group focus:outline-none" data-carousel-next>
-                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/30 dark:bg-gray-800/30 group-hover:bg-white/50 dark:group-hover:bg-gray-800/60 group-focus:ring-4 group-focus:ring-white dark:group-focus:ring-gray-800/70 group-focus:outline-none">
-                        <svg class="w-4 h-4 text-white dark:text-gray-800 rtl:rotate-180" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
-                        </svg>
-                        <span class="sr-only">Next</span>
-                    </span>
-                </button>
-            </div>
-            `;
-        } else {
-            console.error("Element with id 'addtoCart' not found.");
-        }
+        addtoCart.innerHTML += `<a style="height: 380px; width: 450px;" href="#" class="mt-4 block max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
+        <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">${title}</h5>
+        <p class="font-normal text-gray-700 dark:text-gray-400">${desD}</p>
+        <p class="my-2 font-bold text-gray-700 dark:text-gray-400">${price} PKR</p>
+        <p class="my-2 font-semibold text-gray-700 dark:text-gray-400 text-3xl "><i class="me-1 fa-solid fa-location-dot"></i>${city}</p>
+        <div>
+            <p>Seller id: ${getId.toUpperCase()}</p>
+            <p class="my-2 text-xl"><i class="me-2 fa-solid fa-phone"></i>0324789799</p>
+        </div>
+        <button href="#" class="my-2 inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+            Place an order
+            <svg class="rtl:rotate-180 w-3.5 h-3.5 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 10">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 5h12m0 0L9 1m4 4L9 9"/>
+            </svg>
+        </button>
+    </a>
+    
+   <div style="width: 750px;" id="default-carousel" class="relative w-full" data-carousel="slide">
+    <div class="relative h-56 overflow-hidden rounded-lg md:h-96">
+        <!-- Item 1 -->
+        <div class="duration-700 ease-in-out" data-carousel-item>
+            <img style="width: 550px; height: 400px; padding-top: 30px;" src="${img1}" class="absolute block -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2" alt="Product Image">
+        </div>
+    </div>
+</div>
+`
     } else {
         console.log("No such document!");
     }
 }
+
+getProdDetail();
 window.buyProd = buyProd;
